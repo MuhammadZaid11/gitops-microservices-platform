@@ -1,0 +1,43 @@
+# Terraform directories
+.terraform/
+
+# Local state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash log
+crash.log
+
+# CLI configuration
+.terraformrc
+terraform.rc
+
+# Sensitive variable files
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+
+# Lock file (optional to ignore if you want to track it)
+# .terraform.lock.hcl
+
+# Backup and IDE files
+*.backup
+.DS_Store
+.vscode/
+.idea/
+
+# Kubernetes configs and local outputs
+*.kubeconfig
+outputs.tf
+
+# Plugins and provider caches
+.terraform/plugins/
+
+# Ignore plan files
+*.tfplan
+
+# State lock info
+.terraform.tfstate.lock.info
