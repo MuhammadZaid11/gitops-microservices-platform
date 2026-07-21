@@ -1,6 +1,6 @@
-# K8s Voting App — Deployed with Argo CD on AWS
+# K8s Voting App — Deployed with Argo CD on AWS EKS
 
-A microservices-based voting application deployed on Kubernetes using **Argo CD** for GitOps continuous delivery. Infrastructure is provisioned on AWS with **Terraform**, and the cluster runs on **Kind** (local) or **EKS** (production).
+A microservices-based voting application deployed on Kubernetes using **Argo CD** for GitOps continuous delivery. Infrastructure is provisioned on AWS with **Terraform**, and the cluster runs on **EKS** (production) or **Kind** (local).
 
 ---
 
@@ -70,6 +70,32 @@ docker compose down
 
 ---
 
+## Infrastructure (Terraform)
+
+Located in `terraform/`. Uses a modular structure:
+
+| Module           | Purpose                                         |
+|------------------|-------------------------------------------------|
+| `vpc`            | VPC, subnets, route tables                      |
+| `eks`            | EKS cluster and managed node groups             |
+| `iam`            | Cluster and node IAM roles                      |
+| `security-groups`| Security groups for cluster and nodes           |
+| `ecr`            | ECR repositories for container images           |
+| `github-oidc`    | GitHub Actions OIDC role (no static AWS keys)   |
+
+```bash
+cd terraform/dev
+terraform init
+terraform plan
+terraform apply
+```
+
+### EKS Cluster — AWS Console
+
+![EKS Cluster](eks.png)
+
+---
+
 ## Kubernetes Deployment with Argo CD
 
 ### Prerequisites
@@ -78,10 +104,14 @@ docker compose down
 - `kind` installed (for local cluster)
 - Argo CD CLI (optional)
 
-### Step 1 — Create a Kind Cluster
+### Step 1 — Create a Kind Cluster (local) or connect to EKS
 
 ```bash
+# Local
 kind create cluster --name voting-app
+
+# EKS
+aws eks update-kubeconfig --name eks-platform-cluster --region us-east-1
 ```
 
 ### Step 2 — Install Argo CD
@@ -110,45 +140,65 @@ kubectl get secret argocd-initial-admin-secret -n argocd \
 
 Open https://localhost:8080 and log in with `admin` and the password above.
 
-### Step 4 — Connect the Repository
+### Step 4 — Connect the Repository & Create Application
 
 In the Argo CD UI:
 1. Go to **Settings → Repositories** and add this repo
 2. Go to **Applications → New App**
 3. Set the path to `k8s-specifications/`
-4. Set sync policy to **Automatic**
+4. Set namespace to `voting-app`
+5. Set sync policy to **Automatic**
 
 Argo CD will sync and deploy all services automatically.
+
+### Argo CD — Application Overview
+
+![Argo CD Application](argocd-repo.png)
+
+### Argo CD — Application Details Tree
+
+![Argo CD Details](argocd.png)
 
 ### Step 5 — Apply Manifests Manually (optional)
 
 ```bash
+kubectl apply -f k8s-specifications/namespace.yaml
 kubectl apply -f k8s-specifications/
-kubectl get pods
-kubectl get svc
 ```
 
 ---
 
-## Infrastructure (Terraform)
-
-Located in `terraform/`. Uses a modular structure:
-
-| Module           | Purpose                                         |
-|------------------|-------------------------------------------------|
-| `vpc`            | VPC, subnets, route tables                      |
-| `eks`            | EKS cluster and managed node groups             |
-| `iam`            | Cluster and node IAM roles                      |
-| `security-groups`| Security groups for cluster and nodes           |
-| `ecr`            | ECR repositories for container images           |
-| `github-oidc`    | GitHub Actions OIDC role (no static AWS keys)   |
+## Verify Deployment
 
 ```bash
-cd terraform/dev
-terraform init
-terraform plan
-terraform apply
+kubectl get all -n voting-app
 ```
+
+### All Resources Running in `voting-app` Namespace
+
+![kubectl get all](kubectl-all.png)
+
+### Pods, Services & Namespaces
+
+![kubectl output](kubectl.png)
+
+---
+
+## Live Application
+
+Vote app running live on AWS EKS via LoadBalancer:
+
+![Live App](application-live.png)
+
+---
+
+## Observability
+
+![Metrics Server](metrics-server.png)
+
+- **Prometheus** — scrapes cluster and application metrics
+- **Grafana** — dashboards for real-time visualization
+- **Metrics Server** — enables `kubectl top` for node/pod resource usage
 
 ---
 
@@ -166,16 +216,6 @@ Authentication uses **GitHub OIDC** — no AWS access keys stored in secrets.
 
 ---
 
-## Observability
-
-![Grafana](grafana.png)
-![Prometheus](prometheus.png)
-
-- **Prometheus** — scrapes cluster and application metrics
-- **Grafana** — dashboards for real-time visualization
-
----
-
 ## Tech Stack
 
 | Category       | Tools                                      |
@@ -186,7 +226,7 @@ Authentication uses **GitHub OIDC** — no AWS access keys stored in secrets.
 | IaC            | Terraform                                  |
 | CI/CD          | GitHub Actions + OIDC                      |
 | Containers     | Docker, Docker Compose                     |
-| Monitoring     | Prometheus, Grafana                        |
+| Monitoring     | Prometheus, Grafana, Metrics Server        |
 | Languages      | Python, Node.js, .NET (C#)                 |
 
 ---
@@ -195,6 +235,7 @@ Authentication uses **GitHub OIDC** — no AWS access keys stored in secrets.
 
 | Manifest                   | Kind       | Notes                          |
 |----------------------------|------------|--------------------------------|
+| `namespace.yaml`           | Namespace  | `voting-app` namespace         |
 | `vote-deployment.yaml`     | Deployment | 1 replica                      |
 | `vote-service.yaml`        | Service    | NodePort                       |
 | `result-deployment.yaml`   | Deployment | 1 replica                      |
